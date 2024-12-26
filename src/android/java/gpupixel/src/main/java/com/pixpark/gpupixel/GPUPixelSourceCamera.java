@@ -14,6 +14,7 @@ import android.graphics.SurfaceTexture;
 import android.hardware.Camera;
 import android.opengl.GLES20;
 import android.os.Build;
+import android.util.Log;
 import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.WindowManager;
@@ -25,6 +26,7 @@ public class GPUPixelSourceCamera extends GPUPixelSource implements Camera.Previ
     private int mCurrentCameraId = 1;
     private IntBuffer mRGBABuffer;
     private int mRotation = GPUPixel.NoRotation;
+    private boolean isFrontCamera;
     private Context mContext;
     private SurfaceTexture mSurfaceTexture = null;
     private GPUPixelSourceRawInput SourceRawDataInput = null;
@@ -75,7 +77,10 @@ public class GPUPixelSourceCamera extends GPUPixelSource implements Camera.Previ
             public void run() {
                 if (mNativeClassID != 0) {
                     // todo(jeayo yuv to texture)
-                    GPUPixel.nativeYUVtoRBGA(data, previewSize.width, previewSize.height, mRGBABuffer.array());
+//                    long curTime = System.currentTimeMillis();
+//                    Log.e("GPUPixelSourceCamera", "YUVtoRBGA start:" + curTime);
+                    GPUPixel.nativeYUVtoRBGA(data, previewSize.width, previewSize.height, mRGBABuffer.array(), isFrontCamera);
+//                    Log.e("GPUPixelSourceCamera", "YUVtoRBGA cost:" + (System.currentTimeMillis() - curTime));
                     cam.addCallbackBuffer(data);
                     GPUPixel.nativeSourceCameraSetFrame(mNativeClassID, previewSize.height, previewSize.width, mRGBABuffer.array(), GPUPixel.NoRotation);
                 }
@@ -100,6 +105,10 @@ public class GPUPixelSourceCamera extends GPUPixelSource implements Camera.Previ
 
     public void SetSourceRawInput(final GPUPixelSourceRawInput source_input) {
         SourceRawDataInput = source_input;
+    }
+
+    public boolean currentCameraIsFacingFront() {
+        return isFrontCamera;
     }
 
     private void setUpCamera(final int id) {
@@ -133,10 +142,14 @@ public class GPUPixelSourceCamera extends GPUPixelSource implements Camera.Previ
                 rotation = 270;
                 break;
         }
+        Log.e("GPUPixelSourceCamera", "deviceRotation:" + rotation);
+        Log.e("GPUPixelSourceCamera", "info.orientation:" + info.orientation);
 
         mRotation = GPUPixel.NoRotation;
-        if (info.facing == Camera.CameraInfo.CAMERA_FACING_FRONT) {
+        isFrontCamera = info.facing == Camera.CameraInfo.CAMERA_FACING_FRONT;
+        if (isFrontCamera) {
             rotation = (info.orientation + rotation) % 360;
+            Log.e("GPUPixelSourceCamera", "CAMERA_FACING_FRONT");
             switch (rotation) {
                 case 0:
                     mRotation = GPUPixel.FlipHorizontal;
@@ -153,6 +166,7 @@ public class GPUPixelSourceCamera extends GPUPixelSource implements Camera.Previ
             }
         } else {
             rotation = (info.orientation - rotation + 360) % 360;
+            Log.e("GPUPixelSourceCamera", "CAMERA_FACING_BACK");
             switch (rotation) {
                 case 90:
                     mRotation = GPUPixel.RotateRight;
@@ -164,7 +178,11 @@ public class GPUPixelSourceCamera extends GPUPixelSource implements Camera.Previ
                     mRotation = GPUPixel.RotateLeft;
                     break;
             }
+
+            rotation = (360 - rotation) % 360; // compensate the mirror
         }
+        Log.e("GPUPixelSourceCamera", "rotation:" + rotation);
+        mCamera.setDisplayOrientation(rotation);
 
         if (Build.VERSION.SDK_INT > Build.VERSION_CODES.GINGERBREAD_MR1) {
             GPUPixel.getInstance().runOnDraw(new Runnable() {

@@ -12,12 +12,16 @@ import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.SurfaceHolder;
+import android.view.SurfaceView;
+import android.view.View;
 import android.view.WindowManager;
+import android.widget.Button;
 import android.widget.SeekBar;
 import android.widget.Toast;
 
 import com.pixpark.GPUPixelApp.databinding.ActivityMainBinding;
 import com.pixpark.gpupixel.GPUPixel;
+import com.pixpark.gpupixel.GPUPixelTargetRawOutput;
 import com.pixpark.gpupixel.filter.BeautyFaceFilter;
 import com.pixpark.gpupixel.filter.FaceReshapeFilter;
 import com.pixpark.gpupixel.GPUPixelSourceCamera;
@@ -33,11 +37,13 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
     private BeautyFaceFilter beautyFaceFilter;
     private FaceReshapeFilter faceReshapFilter;
     private LipstickFilter lipstickFilter;
+    private GPUPixelTargetRawOutput targetRawOutput;
     private SeekBar smooth_seekbar;
     private SeekBar whiteness_seekbar;
     private SeekBar face_reshap_seekbar;
     private SeekBar big_eye_seekbar;
     private SeekBar lipstick_seekbar;
+    private Button btn_switch_camera;
 
     private ActivityMainBinding binding;
 
@@ -101,6 +107,7 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
         face_reshap_seekbar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                Log.e(TAG, "thinfaceSeekbar progress:" + progress);
                 faceReshapFilter.setThinLevel(progress / 200.0f);
             }
 
@@ -151,9 +158,24 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
             }
         });
 
+        btn_switch_camera = binding.btnSwitchCamera;
+        btn_switch_camera.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (sourceCamera != null) {
+                    sourceCamera.switchCamera();
+                    surfaceView.setMirror(sourceCamera.currentCameraIsFacingFront());
+                }
+            }
+        });
+
         //
         this.checkCameraPermission();
 
+//        SurfaceView myView = (SurfaceView) binding.getRoot().findViewById(R.id.surface_my_view);
+//        if (myView != null) {
+//            myView.getHolder().addCallback(this);
+//        }
     }
 
     public void startCameraFilter() {
@@ -161,6 +183,8 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
         beautyFaceFilter = new BeautyFaceFilter();
         faceReshapFilter = new FaceReshapeFilter();
         lipstickFilter = new LipstickFilter();
+        targetRawOutput = new GPUPixelTargetRawOutput();
+
         // camera
         sourceCamera = new GPUPixelSourceCamera(this.getApplicationContext());
 
@@ -169,6 +193,9 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
         lipstickFilter.addTarget(faceReshapFilter);
         faceReshapFilter.addTarget(beautyFaceFilter);
         beautyFaceFilter.addTarget(surfaceView);
+        Log.e("MainActivity", "targetRawOutput::getNativeClassID>>" + targetRawOutput.getNativeClassID());
+        Log.e("MainActivity", "surfaceView::getNativeClassID>>" + surfaceView.getNativeClassID());
+        beautyFaceFilter.addTarget(targetRawOutput);
 
         sourceCamera.setLandmarkCallbck(new GPUPixel.GPUPixelLandmarkCallback() {
             @Override
@@ -177,9 +204,48 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
                 lipstickFilter.setFaceLandmark(landmarks);
             }
         });
+//        targetRawOutput.setRawOutputI420Callback(new GPUPixel.GPUPixelRawOutputI420Callback() {
+//            @Override
+//            public void onRawOutputI420Data(byte[] data, int width, int height, long ts) {
+//                Log.e("MainActivity", "onRawOutputData:yuv.length:" + data.length + ">>width:" + width + ">>height:" + height + ">>ts:" + ts);
+//                String strData = "";
+//                try {
+//                    for (int i = 0; i < 32; ++i) {
+//                        Byte b = data[i];
+//                        strData += String.format("%h", b & 0xff) + '>';
+//                    }
+//                    strData += "Spacer:";
+//                    for (int i = data.length - 1; i >= data.length - 32; --i) {
+//                        Byte b = data[i];
+//                        strData += String.format("%h", b & 0xff) + '>';
+//                    }
+//                } catch (Exception e) {
+//                    e.printStackTrace();
+//                }
+//                Log.d("MainActivity", "data:" + strData);
+//            }
+//        });
+//        targetRawOutput.setRawOutputPixelsCallback(new GPUPixel.GPUPixelRawOutputPixelsCallback() {
+//            @Override
+//            public void onRawOutputPixelsData(byte[] data, int width, int height, long ts) {
+//                Log.e("MainActivity", "onRawOutputPixelsData:pixels.length:" + data.length + ">>width:" + width + ">>height:" + height + ">>ts:" + ts);
+//                String strData = "";
+//                for (int i = 0; i < 32; ++i) {
+//                    Byte b = data[i];
+//                    strData += String.format("%h", b & 0xff) + '>';
+//                }
+//                strData += "Spacer:";
+//                for (int i = data.length - 1; i >= data.length - 32; --i) {
+//                    Byte b = data[i];
+//                    strData += String.format("%h", b & 0xff) + '>';
+//                }
+//                Log.d("MainActivity", "Pixels data:" + strData);
+//            }
+//        });
         // set default value
         beautyFaceFilter.setSmoothLevel(0.5f);
         beautyFaceFilter.setWhiteLevel(0.4f);
+
     }
 
     public void checkCameraPermission() {
@@ -206,6 +272,7 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
 
 
     public void surfaceCreated(SurfaceHolder holder) {
+        Log.e("MainActivity", "surfaceCreated");
         sourceCamera.setPreviewHolder(holder);
     }
 

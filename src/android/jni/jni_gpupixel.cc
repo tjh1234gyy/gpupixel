@@ -13,6 +13,7 @@
 #include "source_image.h"
 #include "source_raw_data_input.h"
 #include "target_view.h"
+#include "target_raw_data_output.h"
 
 USING_NS_GPUPIXEL
 std::list<std::shared_ptr<Filter>>  filter_list_;
@@ -211,6 +212,12 @@ extern "C" jlong Java_com_pixpark_gpupixel_GPUPixel_nativeTargetViewNew(
   return (uintptr_t)(new TargetView());
 };
 
+extern "C" jlong Java_com_pixpark_gpupixel_GPUPixel_nativeTargetRawOutputNew(
+    JNIEnv* env,
+    jclass obj) {
+  return (uintptr_t)(new TargetRawDataOutput());
+};
+
 extern "C" void Java_com_pixpark_gpupixel_GPUPixel_nativeTargetViewFinalize(
     JNIEnv* env,
     jclass,
@@ -334,7 +341,8 @@ extern "C" void Java_com_pixpark_gpupixel_GPUPixel_nativeYUVtoRBGA(
     jbyteArray yuv420sp,
     jint width,
     jint height,
-    jintArray rgbOut) {
+    jintArray rgbOut,
+    jboolean isFrontCamera) {
 
     jint* rgbData = (jint*)(env->GetPrimitiveArrayCritical(rgbOut, 0));
     jbyte* nv21 = (jbyte*)env->GetPrimitiveArrayCritical(yuv420sp, 0);
@@ -355,7 +363,7 @@ extern "C" void Java_com_pixpark_gpupixel_GPUPixel_nativeYUVtoRBGA(
                      height*4,
                      width,
                      height,
-                     libyuv::kRotate270);
+                     isFrontCamera ? libyuv::kRotate270 : libyuv::kRotate90);
 
     free(src_rgba);
     env->ReleasePrimitiveArrayCritical(rgbOut, rgbData, 0);
@@ -412,6 +420,53 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM* jvm, void* reserved) {
 
 extern "C" void JNIEXPORT JNICALL JNI_OnUnLoad(JavaVM* jvm, void* reserved) {
 //  RTC_CHECK(rtc::CleanupSSL()) << "Failed to CleanupSSL()";
+}
+
+extern "C" void Java_com_pixpark_gpupixel_GPUPixel_nativeSetRawOutputI420Callback (
+        JNIEnv* env,
+        jclass obj,
+        jobject source,
+        jlong classId) {
+    jobject globalSourceRef = env->NewGlobalRef(source);
+    ((TargetRawDataOutput*)classId)->setI420Callbck([=](const uint8_t* data, int width, int height, int64_t ts)  {
+        jclass cls = env->GetObjectClass(globalSourceRef);
+        jmethodID methodID = env->GetMethodID(cls, "onRawOutputI420Data", "([BIIJ)V");
+
+        jbyte* by = (jbyte*)data;
+//        int length = sizeof(data) / sizeof(uint8_t);
+        int length = width * height * 3 / 2;
+        jbyteArray jresult = env->NewByteArray(length);
+        env->SetByteArrayRegion(jresult, 0, length, by);
+        jlong jTs = (jlong)ts;
+
+        env->CallVoidMethod(globalSourceRef, methodID, jresult, width, height, jTs);
+
+        env->DeleteLocalRef(jresult);
+    });
+};
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_pixpark_gpupixel_GPUPixel_nativeSetRawOutputPixelsCallback(JNIEnv *env, jclass clazz,
+                                                                    jobject source,
+                                                                    jlong class_id) {
+    // TODO: implement nativeSetRawOutputPixelsCallback()
+    jobject globalSourceRef = env->NewGlobalRef(source);
+    ((TargetRawDataOutput*)class_id)->setPixelsCallbck([=](const uint8_t* data, int width, int height, int64_t ts)  {
+        jclass cls = env->GetObjectClass(globalSourceRef);
+        jmethodID methodID = env->GetMethodID(cls, "onRawOutputPixelsData", "([BIIJ)V");
+
+        jbyte* by = (jbyte*)data;
+//        int length = sizeof(data) / sizeof(uint8_t);
+        int length = width * height * 4;
+        jbyteArray jresult = env->NewByteArray(length);
+        env->SetByteArrayRegion(jresult, 0, length, by);
+        jlong jTs = (jlong)ts;
+
+        env->CallVoidMethod(globalSourceRef, methodID, jresult, width, height, jTs);
+
+        env->DeleteLocalRef(jresult);
+    });
 }
 
 #endif

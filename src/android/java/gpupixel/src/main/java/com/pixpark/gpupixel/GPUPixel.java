@@ -22,6 +22,12 @@ public class GPUPixel {
     public interface GPUPixelLandmarkCallback {
         public void onFaceLandmark(float[] landmarks);
     }
+    public interface GPUPixelRawOutputI420Callback {
+        public void onRawOutputI420Data(final byte[] data, int width, int height, long ts);
+    }
+    public interface GPUPixelRawOutputPixelsCallback {
+        public void onRawOutputPixelsData(final byte[] data, int width, int height, long ts);
+    }
     public static final int NoRotation = 0;
     public static final int RotateLeft = 1;
     public static final int RotateRight = 2;
@@ -250,10 +256,15 @@ public class GPUPixel {
     public static native void nativeContextInit();
     public static native void nativeContextDestroy();
     public static native void nativeContextPurge();
+    // RawOutput
+    public static native long nativeTargetRawOutputNew();
 
     // utils
-    public static native void nativeYUVtoRBGA(byte[] yuv, int width, int height, int[] out);
+    public static native void nativeYUVtoRBGA(byte[] yuv, int width, int height, int[] out, final boolean isFrontCamera);
 
     public static native void nativeSetLandmarkCallback(Object source, final long classID);
+
+    public static native void nativeSetRawOutputI420Callback(Object source, final long classID);
+    public static native void nativeSetRawOutputPixelsCallback(Object source, final long classID);
 
 }
